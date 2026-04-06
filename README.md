@@ -1,127 +1,111 @@
-# 🚀 Báo Cáo Chuyên Sâu: Next.js App Router
+# 🚀 Technical Report: Next.js App Router Architecture
 
 > [!NOTE]
-> Tài liệu này cung cấp cái nhìn toàn diện về hệ thống **App Router** trong Next.js 13+, giúp tối ưu hóa hiệu suất và trải nghiệm nhà phát triển.
+> Tài liệu này cung cấp cái nhìn toàn diện về hệ thống **App Router** trong Next.js 13+, tập trung vào tối ưu hóa hiệu suất thông qua **React Server Components (RSC)** và cơ chế **Streaming**.
 
 ---
 
 ## 📑 Mục Lục
 
-- [1. Tổng Quan về App Router](#1-tổng-quan-về-app-router)
-- [2. Cấu Trúc Thư Mục & File Quy Ước](#2-cấu-trúc-thư-mục--file-quy-ước)
-- [3. Nested Layouts (Layout Lồng Nhau)](#3-nested-layouts-layout-lồng-nhau)
-- [4. Dynamic Routing (Định Tuyến Động)](#4-dynamic-routing-định-tuyến-động)
-- [5. Route Groups (Nhóm Tuyến Đường)](#5-route-groups-nhóm-tuyến-đường)
-- [6. Xử Lý Trạng Thái UI (Loading & Error)](#6-xử-lý-trạng-thái-ui-loading--error)
-- [7. Điều Hướng (Navigation)](#7-điều-hướng-navigation)
+- [1. Tổng Quan về App Router & Architecture](#1-tổng-quan-về-app-router--architecture)
+- [2. File-system Routing & Special Files](#2-file-system-routing--special-files)
+- [3. Nested Layouts & Shared UI](#3-nested-layouts--shared-ui)
+- [4. Dynamic Routing & Catch-all Segments](#4-dynamic-routing--catch-all-segments)
+- [5. Route Groups & Project Organization](#5-route-groups--project-organization)
+- [6. Data Fetching, Streaming & Suspense](#6-data-fetching-streaming--suspense)
+- [7. Client-side Navigation & Prefetching](#7-client-side-navigation--prefetching)
 
 ---
 
-## 1. Tổng Quan về App Router
+## 1. Tổng Quan về App Router & Architecture
 
-App Router là cuộc cách mạng của Next.js, được xây dựng trên **React Server Components (RSC)**.
+App Router là một kiến trúc định tuyến mới của Next.js, được xây dựng dựa trên **React Server Components (RSC)**, cho phép kết hợp linh hoạt giữa các cơ chế **Server-Side Rendering (SSR)** và **Static Site Generation (SSG)** ở cấp độ Component.
 
-| Tính năng | Pages Router | App Router |
+| Feature | Pages Router | App Router |
 | :--- | :--- | :--- |
-| **Thư mục gốc** | `pages/` | `app/` |
-| **Component mặc định** | Client Components | Server Components |
-| **Layouts** | Phức tạp, khó lồng | Đơn giản, mặc định lồng |
-| **Hiệu suất** | Tải JS lớn ở Client | Tối ưu hóa Server-rendering |
+| **Routing Engine** | Based on `pages/` directory | Based on `app/` directory |
+| **Component Model** | Mainly Client-side (Hydration) | **React Server Components (RSC)** |
+| **Rendering Strategy** | Page-level SSR/SSG | **Component-level** SSR/SSG/ISR |
+| **Performance** | High JS Bundle (Initial Load) | Zero Bundle Size for Server Components |
 
 ---
 
-## 2. Cấu Trúc Thư Mục & File Quy Ước
+## 2. File-system Routing & Special Files
 
-Trong App Router, **thư mục** tạo ra tuyến đường, và các **file đặc biệt** định nghĩa giao diện.
+Trong App Router, cấu trúc thư mục đóng vai trò là **Route Segments**. Mỗi Segment được định nghĩa bởi một thư mục và các **Special Files** thực thi các logic cụ thể.
 
-### 🏠 Các File Quy Ước (Special Files)
+### 🏠 Special Files Quy Ước
 
-- `page.tsx`: 📄 Giao diện hiển thị cho người dùng.
-- `layout.tsx`: 🏗️ Giao diện dùng chung (Header, Footer, Sidebar).
-- `loading.tsx`: ⏳ Hiển thị khi đang tải dữ liệu.
-- `error.tsx`: ⚠️ Xử lý lỗi Runtime cục bộ.
-- `not-found.tsx`: 🔍 Trang lỗi 404 tùy chỉnh.
+- `page.tsx`: 📄 Định nghĩa **Primary UI** cho một Route cụ thể.
+- `layout.tsx`: 🏗️ Định nghĩa **Shared UI** (Shared giữa các segments con). Layout không bị **Re-hydrate** khi chuyển đổi route con.
+- `loading.tsx`: ⏳ Tự động bọc segment trong một **React Suspense Boundary** để hiển thị Loading State.
+- `error.tsx`: ⚠️ Triển khai **React Error Boundary** để xử lý Runtime Errors cục bộ.
+- `not-found.tsx`: 🔍 Xử lý logic khi hàm `notFound()` được gọi hoặc route không tồn tại.
 
 ---
 
-## 3. Nested Layouts (Layout Lồng Nhau)
+## 3. Nested Layouts & Shared UI
 
-Layouts trong thư mục con sẽ lồng vào Layout cha.
+Hệ thống cho phép lồng các Layouts (Nested Layouts), giúp tái sử dụng UI và giảm thiểu việc render lại các thành phần tĩnh.
 
 ```mermaid
 graph TD
-    A[Root Layout] --> B[Marketing Layout]
-    B --> C[About Page]
-    A --> D[Dashboard Layout]
-    D --> E[Settings Page]
+    A[Root Layout] --> B[Internal Marketing Layout]
+    B --> C[About Page Component]
+    A --> D[Dashboard Private Layout]
+    D --> E[Settings Page Component]
 ```
 
 > [!TIP]
-> Sử dụng `layout.tsx` giúp duy trì trạng thái (state) khi chuyển đổi giữa các trang con mà không cần load lại toàn bộ UI.
+> **React Server Components** giúp các Layouts được render hoàn toàn trên Server, giảm thiểu khối lượng JavaScript cần thiết cho quá trình **Hydration** ở phía Client.
 
 ---
 
-## 4. Dynamic Routing (Định Tuyến Động)
+## 4. Dynamic Routing & Catch-all Segments
 
-Sử dụng ngoặc vuông để tạo tham số động.
+Next.js hỗ trợ các cơ chế định nghĩa route linh hoạt thông qua **Dynamic Segments**.
 
-- `app/blog/[slug]/page.tsx` ➡️ `/blog/hello-world`
-- `app/shop/[...slug]/page.tsx` ➡️ `/shop/clothes/men/shoes` (Catch-all)
+- **Dynamic Segment**: `app/blog/[slug]/page.tsx` ➡️ Match `/blog/nextjs-news`
+- **Catch-all Segment**: `app/shop/[...slug]/page.tsx` ➡️ Match `/shop/electronics/laptops/apple`
+- **Optional Catch-all**: `app/shop/[[...slug]]/page.tsx` ➡️ Match cả `/shop`
 
 > [!IMPORTANT]
-> Từ **Next.js 15+**, `params` và `searchParams` là các **Promise**. Bạn cần `await` chúng trước khi sử dụng.
-
-```typescript
-export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  return <div>Post: {slug}</div>;
-}
-```
+> Trong **Next.js 15+**, các thuộc tính `params` và `searchParams` là **Async APIs**. Cần thực hiện `await` để truy cập dữ liệu bên trong.
 
 ---
 
-## 5. Route Groups (Nhóm Tuyến Đường)
+## 5. Route Groups & Project Organization
 
-Gom nhóm logic mà không ảnh hưởng đến URL bằng cách dùng dấu ngoặc đơn `()`.
+Sử dụng **Route Groups** (thư mục bọc bởi ngoặc đơn `()`) để tổ chức code theo module, tính năng hoặc phân quyền mà không làm thay đổi cấu trúc của **URL Pathname**.
 
 - `app/(auth)/login/page.tsx` ➡️ `/login`
-- `app/(auth)/register/page.tsx` ➡️ `/register`
+- `app/(dashboard)/analytics/page.tsx` ➡️ `/analytics`
 
 ---
 
-## 6. Xử Lý Trạng Thái UI (Loading & Error)
+## 6. Data Fetching, Streaming & Suspense
 
-### ⏳ Loading UI
+App Router tích hợp sâu với **React Suspense** để cải thiện trải nghiệm người dùng thông qua **Streaming**.
 
-`loading.tsx` sử dụng **React Suspense** để hiển thị giao diện chờ ngay lập tức trong khi chờ Server Component hoàn thành việc lấy dữ liệu.
-
-### ⚠️ Error Handling
-
-`error.tsx` là một **Client Component** dùng để bắt lỗi và hiển thị giao diện thay thế, giúp ứng dụng không bị crash hoàn toàn.
+- **Streaming**: Cho phép Server gửi từng phần của trang web (các phần UI đã hoàn thành) về Client mà không cần đợi toàn bộ dữ liệu được tải xong.
+- **Suspense Boundaries**: Phân tách các phần UI chậm (ví dụ: lấy dữ liệu từ DB) khỏi các phần UI nhanh (ví dụ: Navigation).
 
 ---
 
-## 7. Điều Hướng (Navigation)
+## 7. Client-side Navigation & Prefetching
 
-### 🔗 Component `<Link>`
+Hệ thống sử dụng cơ chế điều hướng thông minh để tối ưu hóa tốc độ chuyển trang.
 
-Đây là cách điều hướng CHÍNH.
+### 🔗 Next.js `<Link>` Component
 
-- Tự động **Prefetching**: Tải trước dữ liệu khi link xuất hiện trong tầm nhìn.
-- Trải nghiệm SPA mượt mà.
+- **Automatic Prefetching**: Khi một `<Link>` xuất hiện trong **Viewport**, Next.js sẽ tự động tải trước mã nguồn và dữ liệu của route đó.
+- **Soft Navigation**: Chỉ những phần UI thay đổi mới được render lại, giữ nguyên trạng thái của Shared Layouts.
 
-### 🖱️ Hook `useRouter`
+### 🖱️ Programmatic Navigation (`useRouter`)
 
-Dùng cho các trường hợp xử lý logic trước khi chuyển trang (phải khai báo `"use client"`).
-
-```javascript
-"use client"
-import { useRouter } from 'next/navigation'
-
-const router = useRouter()
-router.push('/dashboard')
-```
+- Phải khai báo chỉ thị `"use client"` ở đầu tệp.
+- Thường sử dụng trong các **Event Handlers** để thực thi logic trước khi điều hướng.
 
 ---
 
-*Báo cáo được thực hiện bởi Antigravity AI.*
+*Verified & Compiled by Antigravity Technical Assistant.*
