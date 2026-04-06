@@ -1,135 +1,111 @@
-# 🚀 Technical Report: Next.js  App Router Architecture
+# 🚀 Technical Report: Next.js App Router Architecture
 
 > [!NOTE]
-> Tài liệu này cung cấp cái nhìn toàn diện về hệ thống **App Router** trong phiên bản **Next.js**, bao gồm những cập nhật mới nhất về kiến trúc, **React 19**, cơ chế **Caching** mới, và các **Async Request APIs**.
+> Tài liệu này cung cấp cái nhìn toàn diện về hệ thống **App Router** trong Next.js 13+, tập trung vào tối ưu hóa hiệu suất thông qua **React Server Components (RSC)** và cơ chế **Streaming**.
 
 ---
 
 ## 📑 Mục Lục
 
-- [1. Tổng Quan về Kiến Trúc Next.js](#1-tổng-quan-về-kiến-trúc-nextjs)
-- [2. React 19 & React Server Components (RSC)](#2-react-19--react-server-components-rsc)
-- [3. Caching Semantics (Cập nhập cực kỳ quan trọng)](#3-caching-semantics-cập-nhập-cực-kỳ-quan-trọng)
-- [4. File-system Routing & Async APIs](#4-file-system-routing--async-apis)
-- [5. Server Actions & Mutations](#5-server-actions--mutations)
-- [6. Navigation & Enhanced `<Form>`](#6-navigation--enhanced-form)
+- [1. Tổng Quan về App Router & Architecture](#1-tổng-quan-về-app-router--architecture)
+- [2. File-system Routing & Special Files](#2-file-system-routing--special-files)
+- [3. Nested Layouts & Shared UI](#3-nested-layouts--shared-ui)
+- [4. Dynamic Routing & Catch-all Segments](#4-dynamic-routing--catch-all-segments)
+- [5. Route Groups & Project Organization](#5-route-groups--project-organization)
+- [6. Data Fetching, Streaming & Suspense](#6-data-fetching-streaming--suspense)
+- [7. Client-side Navigation & Prefetching](#7-client-side-navigation--prefetching)
 
 ---
 
-## 1. Tổng Quan về Kiến Trúc Next.js
+## 1. Tổng Quan về App Router & Architecture
 
-Next.js  củng cố App Router làm kiến trúc lõi, loại bỏ dần các mô hình cũ để hướng tới trải nghiệm Server-First tối ưu.
+App Router là một kiến trúc định tuyến mới của Next.js, được xây dựng dựa trên **React Server Components (RSC)**, cho phép kết hợp linh hoạt giữa các cơ chế **Server-Side Rendering (SSR)** và **Static Site Generation (SSG)** ở cấp độ Component.
 
-| Feature | Pages Router (Legacy) | App Router (Next.js ) |
+| Feature | Pages Router | App Router |
 | :--- | :--- | :--- |
-| **Routing Model** | Dựa trên hệ thống tệp tĩnh | Dựa trên thư mục & Layouts lồng nhau |
-| **Component Model** | Chủ yếu Client-side | **React 19 Server Components (RSC)** |
-| **Data Fetching** | `getServerSideProps` | Native `fetch` API, Server Actions |
-| **Caching Default** | Theo từng trang (Page-level) | **Uncached by default** (Opt-in Caching) |
-| **Bundler** | Webpack | **Turbopack** (Stable for Dev) |
+| **Routing Engine** | Based on `pages/` directory | Based on `app/` directory |
+| **Component Model** | Mainly Client-side (Hydration) | **React Server Components (RSC)** |
+| **Rendering Strategy** | Page-level SSR/SSG | **Component-level** SSR/SSG/ISR |
+| **Performance** | High JS Bundle (Initial Load) | Zero Bundle Size for Server Components |
 
 ---
 
-## 2. React 19 & React Server Components (RSC)
+## 2. File-system Routing & Special Files
 
-Kiến trúc App Router hiện được vận hành hoàn toàn trên nền tảng **React 19**.
-
-- **Server Components (Mặc định):** Chạy duy nhất trên Server. Không đẩy JavaScript xuống Client, giúp Bundle Size gần như bằng 0. Trực tiếp gọi vào Database hoặc Backend API.
-- **Client Components:** Khai báo bằng `"use client"`. Chỉ dùng khi cần tính tương tác (Event Listeners, Hooks như `useState`, `useEffect`) hoặc Browser APIs.
-
-> [!TIP]
-> Tận dụng tối đa các Hooks mới của React 19 như `useActionState`, `useFormStatus`, và `useOptimistic` để xây dựng UI tương tác mà không cần quản lý state thủ công phức tạp.
-
----
-
-## 3. Caching Semantics (Cập nhập cực kỳ quan trọng)
-
-> [!WARNING]
-> **Breaking Change trong Next.js :** Các requests cấu hình trước đây hay được tự động cache nay sẽ **KHÔNG còn tự động cache** nữa.
-
-Để đảm bảo kết quả luôn là dữ liệu mới nhất nếu nhà phát triển không chủ động cài đặt, cấu hình mặc định (Defaults) đã được thay đổi:
-
-- Các lệnh gọi `fetch()` **không** còn được cache mặc định. Bạn phải dùng `{ cache: 'force-cache' }` để opt-in.
-- Các hàm `GET` Route Handlers mặc định **không** được cache.
-- Client Router Cache mặc định không lưu trữ (hoặc lưu trữ rất ngắn) việc điều hướng giữa các Pages để đảm bảo người dùng luôn thấy dữ liệu "tươi" (fresh data).
-
----
-
-## 4. File-system Routing & Async APIs
-
-Hệ thống định tuyến vẫn tuân theo quy tắc thư mục, nhưng với Next.js , các Request APIs đã trở thành **Bất đồng bộ (Asynchronous)**.
+Trong App Router, cấu trúc thư mục đóng vai trò là **Route Segments**. Mỗi Segment được định nghĩa bởi một thư mục và các **Special Files** thực thi các logic cụ thể.
 
 ### 🏠 Special Files Quy Ước
 
-- `page.tsx`: Định nghĩa UI chính.
-- `layout.tsx`: Định nghĩa vùng UI dùng chung (Shared UI) không bị re-render.
-- `loading.tsx`: Tự động bọc Suspense Boundary để hiển thị Loading State (Streaming).
-
-### ⚡ Async Dynamic APIs (Breaking Change)
-
-Các thuộc tính phụ thuộc vào Request (trước đây là Synchronous) hiện nay bắt buộc phải dùng `await`:
-
-```tsx
-// app/blog/[slug]/page.tsx
-export default async function Page({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ slug: string }>
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
-}) {
-  const { slug } = await params;
-  const queries = await searchParams;
-  
-  return <h1>Post: {slug}</h1>;
-}
-```
+- `page.tsx`: 📄 Định nghĩa **Primary UI** cho một Route cụ thể.
+- `layout.tsx`: 🏗️ Định nghĩa **Shared UI** (Shared giữa các segments con). Layout không bị **Re-hydrate** khi chuyển đổi route con.
+- `loading.tsx`: ⏳ Tự động bọc segment trong một **React Suspense Boundary** để hiển thị Loading State.
+- `error.tsx`: ⚠️ Triển khai **React Error Boundary** để xử lý Runtime Errors cục bộ.
+- `not-found.tsx`: 🔍 Xử lý logic khi hàm `notFound()` được gọi hoặc route không tồn tại.
 
 ---
 
-## 5. Server Actions & Mutations
+## 3. Nested Layouts & Shared UI
 
-**Server Actions** đã hoàn toàn thay thế khái niệm API Routes (`/api/*`) cho mục đích đột biến dữ liệu (Data Mutations).
+Hệ thống cho phép lồng các Layouts (Nested Layouts), giúp tái sử dụng UI và giảm thiểu việc render lại các thành phần tĩnh.
 
-- **"use server"**: Đánh dấu một hàm chỉ được thực thi trên máy chủ.
-- Tích hợp trực tiếp vào Form: `<form action={myServerAction}>`
-- Bảo mật và tiện lợi: Tự động xử lý Progressive Enhancement và tích hợp liền mạch với RSC.
-
-```tsx
-// actions.ts
-'use server'
-export async function createPost(formData: FormData) {
-  const title = formData.get('title');
-  // Thực thi lưu vào Database trực tiếp
-}
+```mermaid
+graph TD
+    A[Root Layout] --> B[Internal Marketing Layout]
+    B --> C[About Page Component]
+    A --> D[Dashboard Private Layout]
+    D --> E[Settings Page Component]
 ```
+
+> [!TIP]
+> **React Server Components** giúp các Layouts được render hoàn toàn trên Server, giảm thiểu khối lượng JavaScript cần thiết cho quá trình **Hydration** ở phía Client.
 
 ---
 
-## 6. Navigation & Enhanced `<Form>`
+## 4. Dynamic Routing & Catch-all Segments
 
-Ngoài việc sử dụng `<Link>` để prefetching thông minh, Next.js  ra mắt component `<Form>` mới (`next/form`).
+Next.js hỗ trợ các cơ chế định nghĩa route linh hoạt thông qua **Dynamic Segments**.
 
-### 🆕 `next/form`
+- **Dynamic Segment**: `app/blog/[slug]/page.tsx` ➡️ Match `/blog/nextjs-news`
+- **Catch-all Segment**: `app/shop/[...slug]/page.tsx` ➡️ Match `/shop/electronics/laptops/apple`
+- **Optional Catch-all**: `app/shop/[[...slug]]/page.tsx` ➡️ Match cả `/shop`
 
-Cho phép bạn điều hướng (navigate) dưới Client-side một cách mượt mà khi submit dữ liệu form (ví dụ: chức năng Search) thay vì load lại toàn trang:
-
-- Tự động Prefetch nội dung trang tiếp theo.
-- Khớp với hệ thống Client Router của App Router.
-
-```tsx
-import Form from 'next/form'
- 
-export default function SearchBar() {
-  return (
-    <Form action="/search">
-      <input name="query" placeholder="Tìm kiếm..." />
-      <button type="submit">Tìm</button>
-    </Form>
-  )
-}
-```
+> [!IMPORTANT]
+> Trong **Next.js 15+**, các thuộc tính `params` và `searchParams` là **Async APIs**. Cần thực hiện `await` để truy cập dữ liệu bên trong.
 
 ---
 
-*Tài liệu được phân tích và cập nhật cấu trúc dựa trên phiên bản Next.js  mới nhất bởi Antigravity.*
+## 5. Route Groups & Project Organization
+
+Sử dụng **Route Groups** (thư mục bọc bởi ngoặc đơn `()`) để tổ chức code theo module, tính năng hoặc phân quyền mà không làm thay đổi cấu trúc của **URL Pathname**.
+
+- `app/(auth)/login/page.tsx` ➡️ `/login`
+- `app/(dashboard)/analytics/page.tsx` ➡️ `/analytics`
+
+---
+
+## 6. Data Fetching, Streaming & Suspense
+
+App Router tích hợp sâu với **React Suspense** để cải thiện trải nghiệm người dùng thông qua **Streaming**.
+
+- **Streaming**: Cho phép Server gửi từng phần của trang web (các phần UI đã hoàn thành) về Client mà không cần đợi toàn bộ dữ liệu được tải xong.
+- **Suspense Boundaries**: Phân tách các phần UI chậm (ví dụ: lấy dữ liệu từ DB) khỏi các phần UI nhanh (ví dụ: Navigation).
+
+---
+
+## 7. Client-side Navigation & Prefetching
+
+Hệ thống sử dụng cơ chế điều hướng thông minh để tối ưu hóa tốc độ chuyển trang.
+
+### 🔗 Next.js `<Link>` Component
+
+- **Automatic Prefetching**: Khi một `<Link>` xuất hiện trong **Viewport**, Next.js sẽ tự động tải trước mã nguồn và dữ liệu của route đó.
+- **Soft Navigation**: Chỉ những phần UI thay đổi mới được render lại, giữ nguyên trạng thái của Shared Layouts.
+
+### 🖱️ Programmatic Navigation (`useRouter`)
+
+- Phải khai báo chỉ thị `"use client"` ở đầu tệp.
+- Thường sử dụng trong các **Event Handlers** để thực thi logic trước khi điều hướng.
+
+---
+
+*Verified & Compiled by Antigravity Technical Assistant.*
