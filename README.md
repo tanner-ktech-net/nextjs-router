@@ -1,13 +1,13 @@
 # 🚀 Technical Report: Next.js  App Router Architecture
 
 > [!NOTE]
-> Tài liệu này cung cấp cái nhìn toàn diện về hệ thống **App Router** trong phiên bản **Next.js +**, bao gồm những cập nhật mới nhất về kiến trúc, **React 19**, cơ chế **Caching** mới, và các **Async Request APIs**.
+> Tài liệu này cung cấp cái nhìn toàn diện về hệ thống **App Router** trong phiên bản **Next.js**, bao gồm những cập nhật mới nhất về kiến trúc, **React 19**, cơ chế **Caching** mới, và các **Async Request APIs**.
 
 ---
 
 ## 📑 Mục Lục
 
-- [1. Tổng Quan về Kiến Trúc Next.js ](#1-tổng-quan-về-kiến-trúc-nextjs-15)
+- [1. Tổng Quan về Kiến Trúc Next.js](#1-tổng-quan-về-kiến-trúc-nextjs)
 - [2. React 19 & React Server Components (RSC)](#2-react-19--react-server-components-rsc)
 - [3. Caching Semantics (Cập nhập cực kỳ quan trọng)](#3-caching-semantics-cập-nhập-cực-kỳ-quan-trọng)
 - [4. File-system Routing & Async APIs](#4-file-system-routing--async-apis)
@@ -16,11 +16,11 @@
 
 ---
 
-## 1. Tổng Quan về Kiến Trúc Next.js 
+## 1. Tổng Quan về Kiến Trúc Next.js
 
 Next.js  củng cố App Router làm kiến trúc lõi, loại bỏ dần các mô hình cũ để hướng tới trải nghiệm Server-First tối ưu.
 
-| Feature | Pages Router (Legacy) | App Router (Next.js +) |
+| Feature | Pages Router (Legacy) | App Router (Next.js ) |
 | :--- | :--- | :--- |
 | **Routing Model** | Dựa trên hệ thống tệp tĩnh | Dựa trên thư mục & Layouts lồng nhau |
 | **Component Model** | Chủ yếu Client-side | **React 19 Server Components (RSC)** |
